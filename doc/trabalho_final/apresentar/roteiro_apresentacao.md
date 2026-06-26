@@ -310,13 +310,16 @@ FTX_NEXT   → avança para próximo byte ou encerra
 - Sem reação: `TIMEOUT\r\n` (9 bytes)
 
 ### O que dizer
-> "Esta parte foi a maior surpresa do projeto. Assumimos que a comunicação seria por UART serial — como um Arduino — e ficamos horas tentando pinos diferentes. Zero bytes chegavam ao PC."
 
-> "Quando lemos o esquemático da placa com atenção, descobrimos que o **Canal B do FT2232H é um barramento paralelo de 8 bits** — o protocolo **FIFO 245**. Em vez de um fio TX, tem 8 fios de dados ao mesmo tempo, mais dois sinais de controle."
+> "Bom, vou explicar um pouco de como o FPGA envia o tempo de reação ao PC através da USB. Basicamente a nossa primeira suposição foi que o Canal B do FT2232H funcionaria como uma UART serial qualquer, tipo um Arduino ou um ESP — aí tentamos usar o pino 28, 30, 29 e até o 93 como `uart_tx`, só que vinham zero bytes pro PC."
 
-> "O protocolo é simples: verifico se posso escrever, coloco o byte nos 8 fios, pulso o WR# por 50 nanosegundos, e avanço para o próximo byte. Implementamos isso como uma máquina de estados de 5 estados no processo `fifo_proc`."
+> "Aí resolvi dar uma lida na esquemática da placa e descobri que o Canal B não é UART. Ele expõe um barramento paralelo de 8 bits — que são 8 fios de dados ao mesmo tempo — com dois sinais de controle: o Write Strobe e o TX FIFO Not Full, o `WR#` e o `TXE#`. Pesquisando um pouco, descobri que isso é o protocolo **Async FIFO 245**."
 
-> "As mensagens que chegam ao PC são texto ASCII: `RESULT_MS=0342` para uma reação de 342ms, `EARLY` se pressionou cedo, e `TIMEOUT` se não reagiu."
+> "Como funciona? Basicamente o FPGA verifica se o TXE tá em zero, o que significa que a TX FIFO não tá cheia e dá pra escrever. Aí coloca o byte nos 8 fios de dados D0 a D7, pulsa o WR pra nível baixo por pelo menos 50 nanosegundos — que seriam 2 ciclos do clock de 40 MHz — aí solta o WR de volta pra nível alto e repete pro próximo byte."
+
+> "Então basicamente é: verificar se posso escrever, colocar o byte nos 8 fios, pulsar o WR e avançar pro próximo byte. Implementei isso com uma máquina de estados de 5 estados no processo `fifo_proc`: o `FTX_IDLE` que aguarda o trigger, o `FTX_CHECK` que verifica se pode escrever pelo TXE, o `FTX_STROBE` que coloca o byte no barramento e ativa o WR, o `FTX_WAIT` que mantém o WR baixo por 2 ciclos, e o `FTX_NEXT` que avança pro próximo byte ou encerra caso seja o byte final."
+
+> "E as mensagens que chegam ao PC são texto ASCII: antes do LED chega `EARLY` com 7 bytes, sem reação chega `TIMEOUT` com 9 bytes, e quando a reação é válida chega `RESULT_MS=0342` com 16 bytes."
 
 ---
 
@@ -360,11 +363,14 @@ TIMESPEC "TS_bcd" = FROM "TG_rms" TO "TG_uart_msg" TIG;
 ```
 
 ### O que dizer
-> "Para enviar `RESULT_MS=0342`, o FPGA precisa converter o número 342 em texto. O XST — o sintetizador do ISE — não suporta divisão de inteiros em hardware. A solução foi usar **subtrações sucessivas**: quanto de 1000 cabe em 342? Zero. De 100? Três vezes. De 10? Quatro vezes. Resto 2. Isso vira os dígitos `0342`."
 
-> "O problema é que esse código tem **24 andares de lógica combinacional** — demora 27,7 nanossegundos. Mas o clock é de 25 nanossegundos. O ISE detectou essa violação de timing e deu 16 erros."
+> "Agora falando de como o FPGA converte o número 342 em texto, e o problema de timing que isso causou..."
 
-> "A solução foi uma **constraint TIG** no arquivo UCF — Timing Ignore. Diz ao ISE para ignorar esse caminho específico. É seguro porque a conversão só acontece uma vez por clique, nunca em dois ciclos de clock seguidos."
+> "Em VHDL pro XST da Xilinx, divisão de inteiros por variáveis não é suportada em hardware. Então implementar um divisor de hardware é caro quando se fala de processamento. A solução que usei foi subtrações sucessivas — tipo: quanto de 1000 cabe em 342? Zero. E de 100? Três vezes. E de 10? Quatro vezes. Resto 2. Logo, 0342."
+
+> "O problema é que o código tem 10 ramos if-else pra cada casa decimal, e são 4 casas — isso gera **24 andares de lógica combinacional**. Imagina um prédio de 24 andares: o sinal entra no térreo e precisa percorrer todos os andares antes de sair com o resultado. Cada andar é uma camada de portas lógicas e cada uma tem um pequeno atraso físico de propagação. Com 24 andares, o ISE mediu que esse caminho demora **27,7 nanossegundos**. Mas o período do clock é de **25 nanossegundos** — o resultado não fica pronto a tempo pro próximo pulso. O PAR reportou 16 timing errors."
+
+> "A solução foi uma constraint **TIG** no arquivo UCF — Timing Ignore. Basicamente digo pro ISE: 'ignora esse caminho específico'. É seguro porque essa conversão só executa uma vez por clique, nunca em dois ciclos de clock seguidos — então o resultado já tá estabilizado quando o FIFO vai buscar."
 
 ---
 
@@ -448,6 +454,59 @@ O FPGA fica no lado TDI (posição 1 para o iMPACT) e a Flash no lado TDO (posi�
 > "A segunda é gravar na **Platform Flash XCF01S** — permanente. Quando a placa liga, a Flash transmite automaticamente o firmware para o FPGA, sem precisar de computador ou cabo."
 
 > "Usamos o **xc3sprog** que é a ferramenta mais simples: uma linha de comando e está feito. Também testamos o fluxo completo com o iMPACT do ISE mais o OpenOCD — são 3 etapas: gerar o MCS com promgen, gerar o SVF com iMPACT, e executar o SVF com OpenOCD."
+
+---
+
+## TOOLKIT · A Aplicação de Gravação e Monitor
+**Quem fala:** Maicon
+**Tempo:** ~1 minuto *(se o professor perguntar ou se houver espaço)*
+
+### O que é o toolkit
+
+O toolkit é a ferramenta que a gente usou para **gravar o firmware na placa e monitorar o jogo** — sem precisar abrir o ISE ou digitar comandos no terminal. Ele vive na pasta `toolkit/` do projeto.
+
+### Como funciona por dentro
+
+São quatro peças que trabalham juntas:
+
+**`run.bat` / `iniciar.sh` — a porta de entrada**
+São os arquivos que você clica para abrir o programa. Eles fazem apenas uma coisa: preparam o ambiente (no Linux, instalam os drivers USB e configuram permissões; no Windows, verificam se o OpenOCD está instalado) e depois chamam `python fpga_panel.py`. Depois disso, saem de cena. São bootstrappers — só iniciam, não fazem mais nada.
+
+**`fpga_panel.py` — a aplicação inteira**
+Aqui é onde tudo acontece. O Python faz os dois papéis:
+- **Interface gráfica** → feita com tkinter (a biblioteca de janelas do Python). São as abas, botões, área de log que aparece na tela.
+- **Orquestrador** → quando você clica em "Gravar na Flash", o Python monta o comando do OpenOCD e chama `subprocess.Popen()`. Isso abre o OpenOCD como um processo separado. O Python lê a saída do OpenOCD em uma **thread em segundo plano** e vai jogando as linhas na tela em tempo real, sem travar a interface.
+- **Monitor serial** → abre a porta USB com pyserial e lê as mensagens `RESULT_MS=`, `EARLY`, `TIMEOUT` do jogo conforme chegam.
+
+**`build.bat` / `build.sh` — scripts de síntese**
+São chamados pelo Python (via subprocess) quando você clica em "Recompilar". Eles executam a cadeia completa do ISE: XST → NGDBuild → MAP → PAR → BitGen. O Python apenas exibe a saída na tela conforme vai chegando.
+
+**`gravar.cfg` — configuração do OpenOCD**
+Não é código executável. É um arquivo de texto que diz ao OpenOCD qual adaptador usar (FTDI) e como é a cadeia JTAG da placa. O Python passa ele como argumento: `openocd -f gravar.cfg`.
+
+### Diagrama resumido
+
+```
+run.bat / iniciar.sh
+        ↓ prepara sistema e chama Python
+  fpga_panel.py
+        │
+        ├── subprocess.Popen("openocd -f gravar.cfg ...")  → grava bitstream na placa
+        ├── subprocess.Popen("build.bat / build.sh")       → recompila VHDL → .bit
+        └── serial.Serial("COM4 / ttyUSB1")                → lê resultados do jogo
+```
+
+### O que dizer
+
+> "Bom, pra quem ainda não me conhece eu sou o Maicon, e vou estar apresentando o sisteminha que eu fiz utilizando scripts padrão bat e bash, e Python como back e front."
+
+> "A estrutura é essa: o `run.bat` no Windows e o `iniciar.sh` no Linux são só a porta de entrada — eles configuram o ambiente, instalam o que falta, e chamam o Python. Depois disso saem de cena, o trabalho real é tudo no `fpga_panel.py`."
+
+> "O Python faz os dois papéis ao mesmo tempo. O front é a interface gráfica feita com tkinter — as janelas, abas e botões que você vê. O back é o orquestrador: quando você clica em Gravar na Flash, o Python monta o comando do OpenOCD e dispara ele como um processo separado. Lê a saída em uma thread em segundo plano e vai jogando na tela em tempo real, sem travar a interface."
+
+> "Os scripts `build.bat` e `build.sh` são chamados pelo Python quando você quer recompilar o firmware — eles rodam a cadeia inteira do ISE. E o `gravar.cfg` é um arquivo de configuração que o OpenOCD precisa pra saber como falar com a placa — o Python só passa ele como argumento."
+
+> "Então no fundo é isso: Python no centro controlando tudo, e os processos externos — OpenOCD, ISE, porta serial — sendo orquestrados por ele."
 
 ---
 
