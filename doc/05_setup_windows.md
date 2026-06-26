@@ -55,7 +55,7 @@ O Canal B usa o driver VCP (serial) padrao do Windows.
 ## Abrir o Painel
 
 ```cmd
-cd reflex_fpga_kit\toolkit\
+cd fpga-systems-lab\toolkit\
 run.bat
 ```
 
@@ -72,9 +72,9 @@ python fpga_panel.py
 4. Obter licenca gratuita no site da AMD/Xilinx (requer conta)
 5. Salvar como `%USERPROFILE%\Downloads\Xilinx.lic`
 
-O `build.sh` e um script Bash — no Windows ele roda via
-MSYS2/Git Bash, ou pelo botao **Recompilar** no painel
-(que chama `bash build.sh` automaticamente se o Bash estiver no PATH).
+No Windows, o painel chama `build.bat` automaticamente ao clicar
+**Recompilar**, usando os binarios `nt64` do ISE instalado em `C:\Xilinx\`.
+Nao e necessario MSYS2 ou Bash para recompilar no Windows.
 
 ## Diagnostico Rapido
 
@@ -97,4 +97,4 @@ python -c "from serial.tools import list_ports; print([p.device for p in list_po
 Alguns antivirus podem bloquear o OpenOCD ou o Python ao tentar
 acessar dispositivos USB. Se ocorrer, adicionar excecao para:
 - `openocd.exe`
-- A pasta `reflex_fpga_kit\toolkit\`
+- A pasta `fpga-systems-lab\toolkit\`

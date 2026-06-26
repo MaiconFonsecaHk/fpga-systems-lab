@@ -35,7 +35,7 @@ No painel:
 ## Estrutura do Repositorio
 
 ```
-reflex_fpga_kit/
+fpga-systems-lab/
 ├── README.md                        <- este arquivo
 ├── .gitignore
 │
@@ -49,21 +49,14 @@ reflex_fpga_kit/
 │   ├── 06_openocd_e_gravacao.md     <- O QUE E O OPENOCD, JTAG, gravar.cfg, SVF
 │   └── esquematico_R27_FPGA.png     <- esquematico da placa
 │
-├── doc/                             <- documentacao completa
-│   ├── 01_placa_e_pinos.md          <- pinos FPGA, Bank 6, cadeia JTAG
-│   ├── 02_comunicacao_serial.md     <- protocolo FIFO 245, mensagens
-│   ├── 03_sintetizando_o_firmware.md <- como o .bit e gerado (XST→BitGen)
-│   ├── 04_setup_linux.md            <- instalacao e drivers no Linux
-│   ├── 05_setup_windows.md          <- instalacao e drivers no Windows
-│   └── esquematico_R27_FPGA.png     <- esquematico da placa
-│
 ├── firmware/                        <- codigo-fonte VHDL
 │   ├── reflex_game.vhd              <- logica principal (EDITAR AQUI)
 │   ├── reflex_game.ucf              <- mapeamento de pinos (EDITAR AQUI)
 │   ├── reflex_game.xst              <- opcoes do sintetizador XST
 │   ├── reflex_game.prj              <- lista de arquivos VHDL
 │   ├── reflex_game.ut               <- opcoes do BitGen
-│   └── build.sh                     <- script de sintese (Linux/MSYS2)
+│   ├── build.sh                     <- script de sintese (Linux)
+│   └── build.bat                    <- script de sintese (Windows)
 │
 └── toolkit/                         <- aplicacao de gravacao e monitor
     ├── fpga_panel.py                <- interface grafica principal
@@ -114,7 +107,7 @@ Se precisar testar um mapeamento diferente de pinos:
 3. Clicar **Recompilar + Gravar Flash**
 
 O painel gera automaticamente o novo `.vhd` e `.ucf`, executa o
-`build.sh` e grava o novo bitstream na placa.
+`build.bat` (Windows) ou `build.sh` (Linux) e grava o novo bitstream na placa.
 
 Requer ISE 14.7 instalado. Ver `doc/03_sintetizando_o_firmware.md`.
 

@@ -13,7 +13,7 @@
 
 ```bash
 # 1. Entrar na pasta do toolkit
-cd reflex_fpga_kit/toolkit/
+cd fpga-systems-lab/toolkit/
 
 # 2. Executar o inicializador (faz tudo automaticamente)
 bash iniciar.sh
@@ -23,7 +23,7 @@ O script `iniciar.sh`:
 1. Carrega o driver `ftdi_sio`
 2. Registra o VID:PID da placa (`0403:70b1`) no driver
 3. Ajusta permissoes em `/dev/ttyUSB*`
-4. Cria regra udev permanente em `/etc/udev/rules.d/99-fpga-bionexus.rules`
+4. Cria regra udev permanente em `/etc/udev/rules.d/99-fpga-spartan3.rules`
 5. Abre o painel
 
 **Da segunda vez em diante:** basta conectar a placa e rodar `python3 fpga_panel.py`.
@@ -31,7 +31,7 @@ O script `iniciar.sh`:
 ## Abrindo o Painel Manualmente
 
 ```bash
-cd reflex_fpga_kit/toolkit/
+cd fpga-systems-lab/toolkit/
 python3 fpga_panel.py
 ```
 
@@ -56,12 +56,12 @@ echo "0403 70b1" | sudo tee /sys/bus/usb-serial/drivers/ftdi_sio/new_id
 A regra udev criada pelo `iniciar.sh` ja cuida disso. Para verificar:
 
 ```bash
-cat /etc/udev/rules.d/99-fpga-bionexus.rules
+cat /etc/udev/rules.d/99-fpga-spartan3.rules
 ```
 
 Se nao existir, crie manualmente:
 ```bash
-sudo tee /etc/udev/rules.d/99-fpga-bionexus.rules << 'EOF'
+sudo tee /etc/udev/rules.d/99-fpga-spartan3.rules << 'EOF'
 SUBSYSTEM=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="70b1", MODE="0666"
 ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="70b1", \
     RUN+="/bin/sh -c 'modprobe ftdi_sio; echo 0403 70b1 > /sys/bus/usb-serial/drivers/ftdi_sio/new_id'"
