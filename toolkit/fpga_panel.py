@@ -1263,15 +1263,97 @@ class FPGAPanel:
         ocd = self.openocd_path.get().strip()
         which = shutil.which(ocd or "openocd")
         self._log("INFO" if which else "WARN",
-                  f"OpenOCD: {which or 'NÃO ENCONTRADO — instale openocd e ajuste o caminho'}")
+                  f"OpenOCD: {which or 'NÃO ENCONTRADO'}")
         for lbl, var in [("cfg", self.cfg_path), ("bit", self.bit_path)]:
             p = Path(var.get())
             self._log("OK" if p.exists() else "ERRO",
                       f"{lbl}: {'OK' if p.exists() else 'NÃO ENCONTRADO'} — {p}")
         self._log("OK" if SERIAL_AVAILABLE else "WARN",
-                  f"pyserial: {'instalado' if SERIAL_AVAILABLE else 'ausente (pip install pyserial)'}")
-        if ocd:
-            self._run("OpenOCD version", [ocd, "--version"], "ocd_version")
+                  f"pyserial: {'instalado' if SERIAL_AVAILABLE else 'ausente'}")
+        if which:
+            self._run("OpenOCD version", [which, "--version"], "ocd_version")
+        else:
+            if messagebox.askyesno("OpenOCD não encontrado",
+                                   "OpenOCD não está instalado ou não está no PATH.\n\n"
+                                   "Deseja instalar automaticamente?"):
+                self._install_openocd()
+        if not SERIAL_AVAILABLE:
+            if messagebox.askyesno("pyserial ausente",
+                                   "pyserial não está instalado (necessário para o monitor serial).\n\n"
+                                   "Deseja instalar agora via pip?\n"
+                                   "O painel precisará ser reiniciado após a instalação."):
+                self._install_pyserial()
+
+    def _install_pyserial(self):
+        self._log("INFO", "Instalando pyserial via pip...")
+        self._run(
+            "Instalar pyserial",
+            [sys.executable, "-m", "pip", "install", "--user", "pyserial"],
+            "install_pyserial",
+            on_finish=lambda rc, out: self._log(
+                "OK" if rc == 0 else "ERRO",
+                "pyserial instalado. Reinicie o painel para ativar o monitor serial." if rc == 0
+                else "Falha ao instalar pyserial — tente manualmente: pip install pyserial"
+            )
+        )
+
+    def _install_openocd(self):
+        if IS_WINDOWS:
+            self._install_openocd_windows()
+        elif IS_LINUX:
+            self._install_openocd_linux()
+        else:
+            self._log("WARN", "Instalação automática não suportada neste OS.")
+            self._log("WARN", "Instale manualmente: https://openocd.org")
+
+    def _install_openocd_windows(self):
+        if shutil.which("winget"):
+            self._log("INFO", "Instalando OpenOCD via winget...")
+            self._run("Instalar OpenOCD (winget)",
+                      ["winget", "install", "--id=openocd.openocd", "-e", "--silent"],
+                      "install_openocd", on_finish=self._after_openocd_install)
+        elif shutil.which("choco"):
+            self._log("INFO", "Instalando OpenOCD via Chocolatey...")
+            self._run("Instalar OpenOCD (choco)",
+                      ["choco", "install", "openocd", "-y"],
+                      "install_openocd", on_finish=self._after_openocd_install)
+        else:
+            self._log("WARN", "winget e Chocolatey não encontrados.")
+            messagebox.showwarning(
+                "Instalação manual necessária",
+                "Nem winget nem Chocolatey foram encontrados.\n\n"
+                "Instale o OpenOCD manualmente:\n"
+                "https://openocd.org/pages/getting-openocd.html\n\n"
+                "Ou via MSYS2:\n"
+                "pacman -S mingw-w64-x86_64-openocd"
+            )
+
+    def _install_openocd_linux(self):
+        pkg_managers = [
+            ("apt",    ["sudo", "apt",    "install", "-y",           "openocd"]),
+            ("dnf",    ["sudo", "dnf",    "install", "-y",           "openocd"]),
+            ("pacman", ["sudo", "pacman", "-S",      "--noconfirm",  "openocd"]),
+            ("zypper", ["sudo", "zypper", "install", "-y",           "openocd"]),
+        ]
+        for mgr, cmd in pkg_managers:
+            if shutil.which(mgr):
+                self._log("INFO", f"Instalando OpenOCD via {mgr}...")
+                self._run(f"Instalar OpenOCD ({mgr})", cmd, "install_openocd",
+                          on_finish=self._after_openocd_install)
+                return
+        self._log("WARN", "Nenhum gerenciador de pacotes suportado encontrado.")
+        self._log("WARN", "Instale manualmente: sudo <apt|dnf|pacman> install openocd")
+
+    def _after_openocd_install(self, rc, out):
+        if rc == 0:
+            new_path = shutil.which("openocd")
+            if new_path:
+                self.openocd_path.set(new_path)
+                self._log("OK", f"OpenOCD instalado: {new_path}")
+            else:
+                self._log("OK", "OpenOCD instalado. Reinicie o painel se o PATH não for atualizado.")
+        else:
+            self._log("ERRO", "Falha ao instalar OpenOCD — tente instalar manualmente.")
 
     def detect_usb(self):
         if IS_WINDOWS:

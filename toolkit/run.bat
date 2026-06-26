@@ -1,20 +1,17 @@
 @echo off
-:: ──────────────────────────────────────────────────────────────────────────
-:: FPGA Reflex Game — Launcher Windows
-:: Pré-requisitos:
-::   1. Python 3.9+ no PATH  (https://python.org/downloads)
-::   2. OpenOCD no PATH      (https://openocd.org ou MSYS2: pacman -S openocd)
-::   3. Zadig com libusbK no Canal A do FT2232H (https://zadig.akeo.ie)
-:: ──────────────────────────────────────────────────────────────────────────
-
-title FPGA Reflex Game
+:: ──────────────────────────────────────────────────────────────────────────────
+:: FPGA Systems Lab — Launcher Windows
+:: Instala dependencias automaticamente e abre o painel.
+:: Requisito unico: Python 3.9+ com "Add Python to PATH" marcado na instalacao.
+:: ──────────────────────────────────────────────────────────────────────────────
+title FPGA Systems Lab
 
 echo.
-echo  FPGA Reflex Game - Bionexus TX-LED R27
-echo  ========================================
+echo  FPGA Systems Lab — Spartan-3 XC3S200-4TQG144
+echo  ================================================
 echo.
 
-:: Verificar Python
+:: ── Python ───────────────────────────────────────────────────────────────────
 python --version >nul 2>&1
 if errorlevel 1 (
     echo  [ERRO] Python nao encontrado no PATH.
@@ -23,28 +20,68 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
+echo  [OK] Python encontrado.
 
-:: Instalar pyserial se necessario
+:: ── pyserial ─────────────────────────────────────────────────────────────────
 python -c "import serial" >nul 2>&1
 if errorlevel 1 (
     echo  [INFO] Instalando pyserial...
-    pip install pyserial
+    pip install --user pyserial
+    if errorlevel 1 (
+        echo  [ERRO] Falha ao instalar pyserial. Tente manualmente: pip install pyserial
+        pause
+        exit /b 1
+    )
+    echo  [OK] pyserial instalado.
+) else (
+    echo  [OK] pyserial ja instalado.
 )
 
-:: Verificar OpenOCD
+:: ── OpenOCD ──────────────────────────────────────────────────────────────────
 openocd --version >nul 2>&1
-if errorlevel 1 (
-    echo  [AVISO] OpenOCD nao encontrado no PATH.
-    echo          Baixe em: https://openocd.org/pages/getting-openocd.html
-    echo          Ou via MSYS2: pacman -S mingw-w64-x86_64-openocd
-    echo.
-    echo  Continuando sem OpenOCD - so o monitor serial estara disponivel.
-    echo.
+if not errorlevel 1 (
+    echo  [OK] OpenOCD encontrado.
+    goto :openocd_ok
 )
 
-:: Iniciar painel
+echo  [INFO] OpenOCD nao encontrado. Tentando instalar automaticamente...
+
+:: Tentar winget
+winget --version >nul 2>&1
+if not errorlevel 1 (
+    echo  [INFO] Instalando OpenOCD via winget...
+    winget install --id=openocd.openocd -e --silent
+    if not errorlevel 1 (
+        echo  [OK] OpenOCD instalado via winget.
+        goto :openocd_ok
+    )
+)
+
+:: Tentar Chocolatey
+choco --version >nul 2>&1
+if not errorlevel 1 (
+    echo  [INFO] Instalando OpenOCD via Chocolatey...
+    choco install openocd -y
+    if not errorlevel 1 (
+        echo  [OK] OpenOCD instalado via Chocolatey.
+        goto :openocd_ok
+    )
+)
+
+echo  [AVISO] Nao foi possivel instalar OpenOCD automaticamente.
+echo          Instale manualmente e reinicie:
+echo            - https://openocd.org/pages/getting-openocd.html
+echo            - MSYS2: pacman -S mingw-w64-x86_64-openocd
+echo            - Zadig (driver libusbK): https://zadig.akeo.ie
+echo.
+echo  O painel abrira, mas gravacao JTAG nao estara disponivel.
+echo.
+
+:openocd_ok
+
+:: ── Painel ───────────────────────────────────────────────────────────────────
 cd /d "%~dp0"
-echo  Iniciando painel...
+echo  [INFO] Iniciando painel...
 echo.
 python fpga_panel.py
 
