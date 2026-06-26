@@ -71,7 +71,7 @@ ISE_BIN_CANDIDATES: list[Path] = [
 
 DEFAULT_VHDL_PATH    = _FIRMWARE / "reflex_game.vhd"
 DEFAULT_UCF_PATH     = _FIRMWARE / "reflex_game.ucf"
-DEFAULT_BUILD_SCRIPT = _FIRMWARE / "build.sh"
+DEFAULT_BUILD_SCRIPT = _FIRMWARE / ("build.bat" if IS_WINDOWS else "build.sh")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Pinos Bank 6 válidos — P29=GND e P34=VCCO_6 são INVÁLIDOS!
@@ -641,7 +641,8 @@ class FPGAPanel:
                   style="Header.TLabel").pack(side="left", padx=8, pady=8)
         ttk.Label(hdr, text=f"  {BOARD_NAME}",
                   style="Header2.TLabel").pack(side="left", padx=4, pady=8)
-        ttk.Label(hdr, text=f"FT2232H FIFO 245  |  ISE 14.7  |  Python {platform.python_version()}  ",
+        _os_label = "Windows" if IS_WINDOWS else ("Linux" if IS_LINUX else "macOS")
+        ttk.Label(hdr, text=f"  {_os_label}  |  FT2232H FIFO 245  |  ISE 14.7  |  Python {platform.python_version()}  ",
                   style="Header2.TLabel").pack(side="right", padx=8, pady=8)
 
         # NOTEBOOK
@@ -839,7 +840,7 @@ class FPGAPanel:
         for r, (lbl, var, pick) in enumerate([
             ("VHDL (.vhd):", self.vhdl_path,    self._pick_vhdl),
             ("UCF (.ucf):",  self.ucf_path,     self._pick_ucf),
-            ("build.sh:",    self.build_script, self._pick_build_sh),
+            ("build.bat:" if IS_WINDOWS else "build.sh:", self.build_script, self._pick_build_sh),
         ]):
             ttk.Label(build_lf, text=lbl, anchor="e", width=12).grid(row=r, column=0, padx=(8, 4), pady=4, sticky="e")
             ttk.Entry(build_lf, textvariable=var).grid(row=r, column=1, padx=4, pady=4, sticky="ew")
@@ -957,7 +958,7 @@ class FPGAPanel:
               .ncd                      →  [PAR]       →  .ncd  (place & route)
               .ncd + reflex_game.ut     →  [BitGen]    →  .bit  (bitstream binário)
 
-              Todos esses passos são executados por build.sh usando ISE 14.7.
+              Todos esses passos são executados por build.sh (Linux) / build.bat (Windows) usando ISE 14.7.
               O UCF (.ucf) é o arquivo que define os pinos físicos do FPGA.
               Mudar o UCF e recompilar = testar outro mapeamento de pinos.
 
@@ -1102,7 +1103,7 @@ class FPGAPanel:
         self._save_and_apply()
         script = Path(self.build_script.get())
         if not script.exists():
-            messagebox.showerror("build.sh não encontrado", str(script))
+            messagebox.showerror("Script de build não encontrado", str(script))
             return
         self._build_status.set("Compilando...")
         self._blog("=" * 60)
@@ -1114,8 +1115,9 @@ class FPGAPanel:
                 Path.home() / "Downloads" / "Xilinx.lic"
             )
             try:
+                build_cmd = [str(script)] if IS_WINDOWS else ["bash", str(script)]
                 proc = subprocess.Popen(
-                    ["bash", str(script)],
+                    build_cmd,
                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                     text=True, encoding="utf-8", errors="replace",
                     cwd=str(script.parent), env=env)
@@ -1177,7 +1179,8 @@ class FPGAPanel:
         if p: self.ucf_path.set(p)
 
     def _pick_build_sh(self):
-        p = filedialog.askopenfilename(filetypes=[("Shell script", "*.sh"), ("Todos", "*")])
+        ftypes = [("Batch script", "*.bat"), ("Todos", "*")] if IS_WINDOWS else [("Shell script", "*.sh"), ("Todos", "*")]
+        p = filedialog.askopenfilename(filetypes=ftypes)
         if p: self.build_script.set(p)
 
     # ── execução de comandos ──────────────────────────────────────────────────
