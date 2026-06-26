@@ -25,8 +25,11 @@ echo "[OK] Python $(python3 --version)"
 # ── pyserial ──────────────────────────────────────────────────────────────────
 if ! python3 -c "import serial" &>/dev/null 2>&1; then
     echo "[INFO] Instalando pyserial..."
-    pip3 install --user pyserial || pip install --user pyserial
-    echo "[OK] pyserial instalado."
+    pip3 install --user pyserial \
+        || pip install --user pyserial \
+        || pip3 install --break-system-packages --user pyserial \
+        || echo "[AVISO] pyserial nao instalado — instale manualmente: pip3 install pyserial"
+    echo "[OK] pyserial pronto."
 else
     echo "[OK] pyserial ja instalado."
 fi

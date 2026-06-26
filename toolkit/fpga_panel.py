@@ -1270,14 +1270,23 @@ class FPGAPanel:
                       f"{lbl}: {'OK' if p.exists() else 'NÃO ENCONTRADO'} — {p}")
         self._log("OK" if SERIAL_AVAILABLE else "WARN",
                   f"pyserial: {'instalado' if SERIAL_AVAILABLE else 'ausente'}")
+        install_openocd_started = False
         if which:
             self._run("OpenOCD version", [which, "--version"], "ocd_version")
         else:
             if messagebox.askyesno("OpenOCD não encontrado",
                                    "OpenOCD não está instalado ou não está no PATH.\n\n"
                                    "Deseja instalar automaticamente?"):
-                self._install_openocd()
-        if not SERIAL_AVAILABLE:
+                install_openocd_started = True
+                if not SERIAL_AVAILABLE and messagebox.askyesno(
+                        "pyserial ausente",
+                        "pyserial não está instalado (necessário para o monitor serial).\n\n"
+                        "Deseja instalar agora via pip?\n"
+                        "O painel precisará ser reiniciado após a instalação."):
+                    self._install_openocd(on_done=self._install_pyserial)
+                else:
+                    self._install_openocd()
+        if not SERIAL_AVAILABLE and not install_openocd_started:
             if messagebox.askyesno("pyserial ausente",
                                    "pyserial não está instalado (necessário para o monitor serial).\n\n"
                                    "Deseja instalar agora via pip?\n"
@@ -1297,26 +1306,30 @@ class FPGAPanel:
             )
         )
 
-    def _install_openocd(self):
+    def _install_openocd(self, on_done=None):
         if IS_WINDOWS:
-            self._install_openocd_windows()
+            self._install_openocd_windows(on_done=on_done)
         elif IS_LINUX:
-            self._install_openocd_linux()
+            self._install_openocd_linux(on_done=on_done)
         else:
             self._log("WARN", "Instalação automática não suportada neste OS.")
             self._log("WARN", "Instale manualmente: https://openocd.org")
 
-    def _install_openocd_windows(self):
+    def _install_openocd_windows(self, on_done=None):
+        def _finish(rc, out):
+            self._after_openocd_install(rc, out)
+            if on_done:
+                on_done()
         if shutil.which("winget"):
             self._log("INFO", "Instalando OpenOCD via winget...")
             self._run("Instalar OpenOCD (winget)",
                       ["winget", "install", "--id=openocd.openocd", "-e", "--silent"],
-                      "install_openocd", on_finish=self._after_openocd_install)
+                      "install_openocd", on_finish=_finish)
         elif shutil.which("choco"):
             self._log("INFO", "Instalando OpenOCD via Chocolatey...")
             self._run("Instalar OpenOCD (choco)",
                       ["choco", "install", "openocd", "-y"],
-                      "install_openocd", on_finish=self._after_openocd_install)
+                      "install_openocd", on_finish=_finish)
         else:
             self._log("WARN", "winget e Chocolatey não encontrados.")
             messagebox.showwarning(
@@ -1327,8 +1340,14 @@ class FPGAPanel:
                 "Ou via MSYS2:\n"
                 "pacman -S mingw-w64-x86_64-openocd"
             )
+            if on_done:
+                on_done()
 
-    def _install_openocd_linux(self):
+    def _install_openocd_linux(self, on_done=None):
+        def _finish(rc, out):
+            self._after_openocd_install(rc, out)
+            if on_done:
+                on_done()
         pkg_managers = [
             ("apt",    ["sudo", "apt",    "install", "-y",           "openocd"]),
             ("dnf",    ["sudo", "dnf",    "install", "-y",           "openocd"]),
@@ -1339,10 +1358,12 @@ class FPGAPanel:
             if shutil.which(mgr):
                 self._log("INFO", f"Instalando OpenOCD via {mgr}...")
                 self._run(f"Instalar OpenOCD ({mgr})", cmd, "install_openocd",
-                          on_finish=self._after_openocd_install)
+                          on_finish=_finish)
                 return
         self._log("WARN", "Nenhum gerenciador de pacotes suportado encontrado.")
         self._log("WARN", "Instale manualmente: sudo <apt|dnf|pacman> install openocd")
+        if on_done:
+            on_done()
 
     def _after_openocd_install(self, rc, out):
         if rc == 0:
@@ -1525,7 +1546,7 @@ class FPGAPanel:
         def reader():
             try:
                 self.serial_obj = serial.Serial(port, baudrate=baud, timeout=0.2)
-                self._sb_serial.set(f"Serial: {port}")
+                self.root.after(0, self._sb_serial.set, f"Serial: {port}")
                 self.root.after(0, self._slog,
                                 f"Conectado em {port} @ {baud}. Jogue uma rodada para ver o resultado.")
                 buf = b""
@@ -1548,13 +1569,13 @@ class FPGAPanel:
                         time.sleep(0.05)
             except Exception as exc:
                 self.root.after(0, self._slog, f"Erro serial: {exc}", "ERRO")
-                self._sb_serial.set("Serial: erro")
+                self.root.after(0, self._sb_serial.set, "Serial: erro")
             finally:
                 try:
                     if self.serial_obj: self.serial_obj.close()
                 except Exception: pass
                 self.serial_obj = None
-                self._sb_serial.set("Serial: desconectado")
+                self.root.after(0, self._sb_serial.set, "Serial: desconectado")
                 self.root.after(0, self._slog,
                                 f"Desconectado. Total recebido: {self._rx_byte_count} bytes.")
 

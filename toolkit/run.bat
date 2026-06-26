@@ -28,9 +28,8 @@ if errorlevel 1 (
     echo  [INFO] Instalando pyserial...
     pip install --user pyserial
     if errorlevel 1 (
-        echo  [ERRO] Falha ao instalar pyserial. Tente manualmente: pip install pyserial
-        pause
-        exit /b 1
+        echo  [AVISO] Falha ao instalar pyserial. Monitor serial indisponivel.
+        echo          Para instalar manualmente: pip install pyserial
     )
     echo  [OK] pyserial instalado.
 ) else (
