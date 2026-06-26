@@ -1,0 +1,12 @@
+# FPGA Reflex Game — dependências Python
+#
+# Obrigatório:
+#   nenhuma dependência externa para gravação e logs
+#   (tkinter vem com Python; subprocess/threading são stdlib)
+#
+# Opcional (monitor serial):
+pyserial>=3.5
+
+# Para instalar:
+#   Linux:   pip3 install --user -r requirements.txt
+#   Windows: pip install -r requirements.txt

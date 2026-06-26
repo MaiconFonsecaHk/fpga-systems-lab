@@ -1,0 +1,49 @@
+# Projeto: Jogo de Reflexo - FPGA Spartan-3
+# Placa: Bionexus TX-LED R27 / Spartan-3 XC3S200-4TQG144
+# Top module: reflex_game
+#
+# Observacao importante:
+# - Os sinais abaixo consideram logica de 3,3 V.
+# - Nao aplique 16 V em GPIO.
+# - O botao deve atuar sobre o pino de GPIO escolhido em nivel logico de 3,3 V.
+# - Caso o botao escolhido seja ativo em nivel baixo, altere BTN_ACTIVE_LEVEL no VHDL para '0'.
+
+# Clock principal da placa
+# CLK_SYS -> pino 53 da FPGA
+NET "clk" LOC = "P53" | IOSTANDARD = LVCMOS33;
+NET "clk" TNM_NET = "clk";
+TIMESPEC "TS_clk" = PERIOD "clk" 25 ns HIGH 50%;
+
+# LEDs da placa
+# D5 -> P51
+# D6 -> P50
+# D7 -> P47
+NET "led_reflexo" LOC = "P51" | IOSTANDARD = LVCMOS33;
+NET "led_status"  LOC = "P50" | IOSTANDARD = LVCMOS33;
+NET "led_erro"    LOC = "P47" | IOSTANDARD = LVCMOS33;
+
+# Entrada por GPIO para o botao de resposta
+# Sugestao baseada no conector Bluetooth:
+# BLE_STS -> P56
+NET "btn" LOC = "P56" | IOSTANDARD = LVCMOS33 | PULLDOWN;
+
+# FT2232H Canal B - modo FIFO 245 assincrono (Bank 6)
+# Barramento de dados 8 bits (BDBUS0-7 = USB_D0-D7 no esquematico)
+NET "usb_d<0>" LOC = "P31" | IOSTANDARD = LVCMOS33;
+NET "usb_d<1>" LOC = "P30" | IOSTANDARD = LVCMOS33;
+NET "usb_d<2>" LOC = "P27" | IOSTANDARD = LVCMOS33;
+NET "usb_d<3>" LOC = "P28" | IOSTANDARD = LVCMOS33;
+NET "usb_d<4>" LOC = "P32" | IOSTANDARD = LVCMOS33;
+NET "usb_d<5>" LOC = "P33" | IOSTANDARD = LVCMOS33;
+NET "usb_d<6>" LOC = "P36" | IOSTANDARD = LVCMOS33;
+NET "usb_d<7>" LOC = "P35" | IOSTANDARD = LVCMOS33;
+# usb_wr: write strobe ativo baixo -> WR# do FT2232H
+NET "usb_wr"   LOC = "P21" | IOSTANDARD = LVCMOS33;
+# usb_txe: TX FIFO nao cheio ('0' = pode escrever)
+NET "usb_txe"  LOC = "P26" | IOSTANDARD = LVCMOS33 | PULLDOWN;
+
+# Caminho BCD (reaction_time_ms -> uart_msg) so roda 1x por pressao de botao
+# Marcar como TIG para evitar falsos erros de timing nesse caminho combinacional longo
+INST "reaction_time_ms_*" TNM = "TG_rms";
+INST "uart_msg_*_*"       TNM = "TG_uart_msg";
+TIMESPEC "TS_bcd" = FROM "TG_rms" TO "TG_uart_msg" TIG;

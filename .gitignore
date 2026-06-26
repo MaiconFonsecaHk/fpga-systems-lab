@@ -1,0 +1,61 @@
+# ── ISE build artifacts ──────────────────────────────────────────────────────
+firmware/_ngo/
+firmware/_xmsgs/
+firmware/xst/
+firmware/xlnx_auto_*/
+firmware/*.ngc
+firmware/*.ngd
+firmware/*.ncd
+firmware/*.pcf
+firmware/*.bgn
+firmware/*.bld
+firmware/*.drc
+firmware/*.lso
+firmware/*.map
+firmware/*.mrp
+firmware/*.ngm
+firmware/*.ngr
+firmware/*.pad
+firmware/*.par
+firmware/*.ptwx
+firmware/*.syr
+firmware/*.twr
+firmware/*.twx
+firmware/*.unroutes
+firmware/*.xdl
+firmware/*.xpi
+firmware/*.xrpt
+firmware/*.xwbt
+firmware/*_map.*
+firmware/*_bitgen.*
+firmware/*_ngdbuild.*
+firmware/*_par.*
+firmware/*_xst.*
+firmware/*_summary.*
+firmware/*_usage.*
+firmware/usage_statistics_webtalk.html
+firmware/webtalk.log
+
+# ── Flash programming artifacts ──────────────────────────────────────────────
+toolkit/reflex_game_flash.*
+toolkit/flash_program.cmd
+toolkit/_impactbatch.log
+
+# ── Python cache ──────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ── Runtime ──────────────────────────────────────────────────────────────────
+toolkit/logs/*
+!toolkit/logs/.gitkeep
+toolkit/pin_config.json
+
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Licenca ISE (nunca commitar) ──────────────────────────────────────────────
+*.lic
+Xilinx.lic
