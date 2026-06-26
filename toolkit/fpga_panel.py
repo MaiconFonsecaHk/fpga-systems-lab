@@ -533,7 +533,7 @@ def quote_path(p: Path) -> str:
 
 
 def timestamp() -> str:
-    return _dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    return _dt.datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1290,8 +1290,13 @@ class FPGAPanel:
             while True:
                 kind, payload = self.queue.get_nowait()
                 if kind == "log":
-                    lvl = "ERRO" if "error" in str(payload).lower() else "CMD"
-                    self._log(lvl, str(payload))
+                    line = str(payload)
+                    if "sudo: a password is required" in line or "sudo: password" in line.lower():
+                        self._log("WARN", line)
+                        self._log("DICA", "sudo expirou — execute 'sudo true' no terminal e tente novamente.")
+                    else:
+                        lvl = "ERRO" if "error" in line.lower() else "CMD"
+                        self._log(lvl, line)
                 elif kind == "error":
                     self._log("ERRO", str(payload))
                 elif kind == "done":
@@ -1467,12 +1472,44 @@ class FPGAPanel:
 
     def detect_usb(self):
         if IS_WINDOWS:
-            self._log("INFO", "Windows: verifique o Gerenciador de Dispositivos → Portas (COM e LPT).")
+            if SERIAL_AVAILABLE:
+                try:
+                    from serial.tools import list_ports
+                    vid = int(FTDI_VID, 16)
+                    pid = int(FTDI_PID, 16)
+                    ftdi = [p for p in list_ports.comports() if p.vid == vid and p.pid == pid]
+                    if ftdi:
+                        names = ", ".join(p.device for p in ftdi)
+                        self._sb_usb.set(f"USB: FT2232H OK ({names})")
+                        self._log("OK", f"FTDI {FTDI_VID}:{FTDI_PID} encontrado: {names}")
+                    else:
+                        self._sb_usb.set("USB: nao encontrado")
+                        self._log("ERRO", f"FTDI {FTDI_VID}:{FTDI_PID} nao encontrado. "
+                                  "Verifique o Gerenciador de Dispositivos → Portas (COM e LPT).")
+                except Exception as exc:
+                    self._log("WARN", f"Erro ao listar portas COM: {exc}")
+                    self._sb_usb.set("USB: erro na deteccao")
+            else:
+                def parse_pnp(rc, out):
+                    tag = f"VID_{FTDI_VID.upper()}&PID_{FTDI_PID.upper()}"
+                    if tag.lower() in out.lower():
+                        self._sb_usb.set("USB: FT2232H OK")
+                        self._log("OK", f"FTDI {FTDI_VID}:{FTDI_PID} encontrado.")
+                    else:
+                        self._sb_usb.set("USB: nao encontrado")
+                        self._log("ERRO", f"FTDI {FTDI_VID}:{FTDI_PID} nao encontrado. "
+                                  "Verifique o Gerenciador de Dispositivos.")
+                self._run("Detectar USB", ["pnputil", "/enum-devices", "/class", "USB"],
+                          "detect_usb", parse_pnp)
+            return
+        if not shutil.which("lsusb"):
+            self._sb_usb.set("USB: lsusb ausente")
+            self._log("WARN", "lsusb nao encontrado — instale usbutils: sudo apt/dnf install usbutils")
             return
         def parse(rc, out):
             tag = f"{FTDI_VID}:{FTDI_PID}".lower()
             if tag in out.lower():
-                self._sb_usb.set(f"USB: FT2232H OK")
+                self._sb_usb.set("USB: FT2232H OK")
                 self._log("OK", f"FTDI {FTDI_VID}:{FTDI_PID} encontrado.")
             else:
                 self._sb_usb.set("USB: nao encontrado")
