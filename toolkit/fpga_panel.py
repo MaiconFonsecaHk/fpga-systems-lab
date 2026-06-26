@@ -577,6 +577,18 @@ class FPGAPanel:
         self._txe  = IntVar(value=26)
         self._uart_tx = IntVar(value=28)
 
+        self._action_buttons: list = []
+        self._pins_dirty = False
+
+        def _mark_dirty(*_):
+            self._pins_dirty = True
+        for iv in self._d:
+            iv.trace_add("write", _mark_dirty)
+        self._wr.trace_add("write", _mark_dirty)
+        self._txe.trace_add("write", _mark_dirty)
+        self._uart_tx.trace_add("write", _mark_dirty)
+        self.comm_mode.trace_add("write", _mark_dirty)
+
         # ── status bar vars ────────────────────────────────────────────────
         self._sb_usb    = StringVar(value="USB: —")
         self._sb_jtag   = StringVar(value="JTAG: —")
@@ -587,6 +599,7 @@ class FPGAPanel:
         self._load_pin_config()
         self._apply_style()
         self._build_ui()
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self._poll_queue()
         self._clock_tick()
 
@@ -705,18 +718,27 @@ class FPGAPanel:
         # Botões de ação
         act = ttk.Frame(parent)
         act.pack(fill="x", padx=10, pady=4)
-        btns = [
+        action_btns = [
             ("1. Verificar ambiente", self.check_environment),
             ("2. Detectar USB/FTDI",  self.detect_usb),
             ("3. Escanear JTAG",      self.scan_jtag),
             ("4. Gravar na RAM",      self.program_fpga),
             ("5. Gravar na Flash",    self.program_flash),
-            ("Parar",                 self.stop_process),
         ]
-        for txt, cmd in btns:
-            ttk.Button(act, text=txt, command=cmd, style="Action.TButton").pack(side="left", padx=3)
+        self._action_buttons = []
+        for txt, cmd in action_btns:
+            b = ttk.Button(act, text=txt, command=cmd, style="Action.TButton")
+            b.pack(side="left", padx=3)
+            self._action_buttons.append(b)
+        ttk.Button(act, text="Parar", command=self.stop_process,
+                   style="Action.TButton").pack(side="left", padx=3)
 
         ttk.Button(act, text="Abrir logs", command=self._open_logs).pack(side="right", padx=3)
+
+        # Aviso de firmware desatualizado
+        self._bit_stale_var = StringVar(value="")
+        ttk.Label(parent, textvariable=self._bit_stale_var,
+                  foreground="orange").pack(fill="x", padx=10)
 
         # Banner de status
         self._prog_banner = StringVar(value="")
@@ -1119,7 +1141,9 @@ class FPGAPanel:
                 self._blog(f"  WR = P{self._wr.get()}   TXE = P{self._txe.get()}")
             else:
                 self._blog(f"  UART TX = P{self._uart_tx.get()}")
+            self._pins_dirty = False
             self._build_status.set("VHDL e UCF gerados. Clique Recompilar para gerar o bitstream.")
+            self._check_bit_staleness()
         except Exception as e:
             messagebox.showerror("Erro ao salvar", str(e))
 
@@ -1214,10 +1238,16 @@ class FPGAPanel:
             return ["sudo", "-n", ocd]
         return [ocd]
 
+    def _set_buttons_state(self, state: str):
+        for b in self._action_buttons:
+            try: b.configure(state=state)
+            except Exception: pass
+
     def _run(self, title: str, cmd: list[str], log_name: str, on_finish=None):
         if self.current_process:
             messagebox.showwarning("Ocupado", "Já há um processo em execução.")
             return
+        self._set_buttons_state("disabled")
         self._log("INFO", f"Iniciando: {title}")
         self._log("CMD",  "$ " + " ".join(shlex.quote(x) for x in cmd))
 
@@ -1266,6 +1296,7 @@ class FPGAPanel:
                     self._log("ERRO", str(payload))
                 elif kind == "done":
                     self._log("DONE", str(payload))
+                    self._set_buttons_state("normal")
                 elif kind == "callback":
                     func, rc, out = payload
                     try: func(rc, out)
@@ -1273,7 +1304,30 @@ class FPGAPanel:
                         self._log("ERRO", f"Callback error: {exc}")
         except queue.Empty:
             pass
-        self.root.after(150, self._poll_queue)
+        self.root.after(50, self._poll_queue)
+
+    def _check_bit_staleness(self):
+        try:
+            bit = Path(self.bit_path.get())
+            vhd = Path(self.vhdl_path.get())
+            ucf = Path(self.ucf_path.get())
+            if bit.exists():
+                bit_mtime = bit.stat().st_mtime
+                newer = [f.name for f in [vhd, ucf] if f.exists() and f.stat().st_mtime > bit_mtime]
+                self._bit_stale_var.set(
+                    f"Aviso: {', '.join(newer)} modificado apos o .bit — recompile para atualizar o firmware."
+                    if newer else ""
+                )
+        except Exception:
+            pass
+
+    def _on_close(self):
+        if self._pins_dirty:
+            if messagebox.askyesno("Sair sem salvar",
+                                   "Ha configuracoes de pinos nao salvas.\n\n"
+                                   "Deseja salvar antes de sair?"):
+                self._save_and_apply()
+        self.root.destroy()
 
     def stop_process(self):
         if self.current_process:
