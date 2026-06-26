@@ -59,3 +59,8 @@ Thumbs.db
 # ── Licenca ISE (nunca commitar) ──────────────────────────────────────────────
 *.lic
 Xilinx.lic
+
+# ── Documentos de análise (sessão de auditoria) ───────────────────────────────
+fpga_systems_lab_auditoria.md
+fpga_systems_lab_smoke_test.md
+roadmap.md
