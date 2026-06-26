@@ -43,7 +43,7 @@ except Exception:
 # ─────────────────────────────────────────────────────────────────────────────
 # Constantes de identificação
 # ─────────────────────────────────────────────────────────────────────────────
-APP_NAME    = "FPGA Reflex Game"
+APP_NAME    = "FPGA Systems Lab"
 APP_VERSION = "2.0"
 BOARD_NAME  = "Bionexus TX-LED R27 / XC3S200-4TQG144"
 FTDI_VID    = "0403"
@@ -64,9 +64,14 @@ _FIRMWARE    = _KIT_DIR.parent / "firmware"
 
 ISE_BIN_CANDIDATES: list[Path] = [
     Path("/opt/Xilinx/14.7/ISE_DS/ISE/bin/lin64"),
+    Path("/opt/Xilinx/ISE_DS/ISE/bin/lin64"),
+    Path("/tools/Xilinx/14.7/ISE_DS/ISE/bin/lin64"),
+    Path.home() / "Xilinx/14.7/ISE_DS/ISE/bin/lin64",
     Path.home() / "Downloads/Xilinx_ISE_DS_Lin_14.7_1015_1/ISE_DS/ISE/bin/lin64",
     Path("C:/Xilinx/14.7/ISE_DS/ISE/bin/nt64"),
     Path("C:/Xilinx/ISE_DS/ISE/bin/nt64"),
+    Path("C:/Xilinx/14.7/ISE_DS/ISE/bin/nt"),
+    Path("D:/Xilinx/14.7/ISE_DS/ISE/bin/nt64"),
 ]
 
 DEFAULT_VHDL_PATH    = _FIRMWARE / "reflex_game.vhd"
@@ -343,6 +348,7 @@ class FPGAPanel:
         self.cfg_path     = StringVar(value=str((_KIT_DIR / "gravar.cfg").resolve()))
         self.bit_path     = StringVar(value=str((_KIT_DIR / "reflex_game.bit").resolve()))
         self.use_sudo     = BooleanVar(value=IS_LINUX)
+        self.xcf_device   = StringVar(value=XCF_DEVICE)
 
         self.serial_port   = StringVar(value="COM3" if IS_WINDOWS else "/dev/ttyUSB1")
         self.serial_baud   = StringVar(value="115200")
@@ -499,6 +505,11 @@ class FPGAPanel:
         ttk.Checkbutton(paths, text="Usar sudo -n (Linux — necessário se udev não configurado)",
                         variable=self.use_sudo).grid(row=3, column=1, sticky="w", padx=4, pady=4)
 
+        ttk.Label(paths, text="Flash XCF:", width=14, anchor="e").grid(row=4, column=0, padx=(8, 4), pady=4, sticky="e")
+        ttk.Combobox(paths, textvariable=self.xcf_device,
+                     values=["xcf01s", "xcf02s", "xcf04s", "xcf16p"],
+                     width=12, state="readonly").grid(row=4, column=1, padx=4, pady=4, sticky="w")
+
         # Botões de ação
         act = ttk.Frame(parent)
         act.pack(fill="x", padx=10, pady=4)
@@ -592,7 +603,7 @@ class FPGAPanel:
             variable=self.comm_mode, value="fifo",
             command=self._on_mode_change).pack(anchor="w", padx=10, pady=3)
         ttk.Radiobutton(mode_lf,
-            text="UART Serial 115200 8N1 — fallback (1 pino TX)",
+            text="UART Serial 115200 8N1 — fallback (1 pino TX) (experimental)",
             variable=self.comm_mode, value="uart",
             command=self._on_mode_change).pack(anchor="w", padx=10, pady=3)
 
@@ -863,12 +874,14 @@ class FPGAPanel:
 
     # ── config tab helpers ────────────────────────────────────────────────────
     def _set_frame_state(self, frame, state: str):
+        _STATEFUL = (ttk.Entry, ttk.Combobox, ttk.Button, ttk.Checkbutton, ttk.Radiobutton)
         for w in frame.winfo_children():
-            try:
-                w.configure(state=state)
-            except Exception:
-                pass
-            self._set_frame_state(w, state)  # recursivo — alcança dropdowns dentro de sub-frames
+            if isinstance(w, _STATEFUL):
+                try:
+                    w.configure(state=state)
+                except Exception:
+                    pass
+            self._set_frame_state(w, state)
 
     def _on_mode_change(self):
         mode = self.comm_mode.get()
@@ -1363,7 +1376,7 @@ class FPGAPanel:
         self._log("INFO", "=== Flash 1/3: gerar MCS (promgen) ===")
         self._run(
             "Gerar MCS",
-            [promgen, "-w", "-p", "mcs", "-c", "FF", "-x", XCF_DEVICE,
+            [promgen, "-w", "-p", "mcs", "-c", "FF", "-x", self.xcf_device.get(),
              "-u", "0", str(bit), "-o", stem],
             "gen_mcs",
             on_finish=lambda rc, out: self._flash2(rc, impact, mcs_path, svf_path, bit),
@@ -1380,7 +1393,7 @@ class FPGAPanel:
             f'setMode -bscan\n'
             f'setCable -port svf -file "{quote_path(svf_path)}"\n'
             f'addDevice -position 1 -part xc3s200\n'
-            f'addDevice -position 2 -part {XCF_DEVICE}\n'
+            f'addDevice -position 2 -part {self.xcf_device.get()}\n'
             f'assignFile -position 2 -file "{quote_path(mcs_path)}"\n'
             f'program -p 2 -e -v\n'
             f'quit\n',

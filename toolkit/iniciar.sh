@@ -78,6 +78,9 @@ if [ -n "$PORTS" ]; then
     echo "       Portas: $PORTS"
     echo "       → ttyUSB0 = Canal A (JTAG/OpenOCD)"
     echo "       → ttyUSB1 = Canal B (monitor serial)"
+    echo ""
+    echo "  DICA: Para acesso permanente sem sudo, adicione seu usuario ao grupo dialout:"
+    echo "        sudo usermod -a -G dialout \$USER  (requer logout/login para surtir efeito)"
 else
     echo "       Nenhuma porta USB serial detectada (placa pode nao estar conectada)"
 fi
