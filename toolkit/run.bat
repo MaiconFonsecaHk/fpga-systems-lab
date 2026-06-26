@@ -20,6 +20,13 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
+python -c "import sys; sys.exit(0 if sys.version_info >= (3,9) else 1)" >nul 2>&1
+if errorlevel 1 (
+    echo  [ERRO] Python 3.9+ necessario.
+    for /f "tokens=*" %%v in ('python --version 2^>^&1') do echo         Versao encontrada: %%v
+    pause
+    exit /b 1
+)
 echo  [OK] Python encontrado.
 
 :: ── pyserial ─────────────────────────────────────────────────────────────────

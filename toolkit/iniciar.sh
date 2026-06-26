@@ -20,6 +20,10 @@ if ! command -v python3 &>/dev/null; then
     echo "       sudo apt install python3   # Ubuntu/Debian"
     exit 1
 fi
+if ! python3 -c "import sys; sys.exit(0 if sys.version_info >= (3,9) else 1)" 2>/dev/null; then
+    echo "[ERRO] Python 3.9+ necessario. Versao encontrada: $(python3 --version)"
+    exit 1
+fi
 echo "[OK] Python $(python3 --version)"
 
 # ── pyserial ──────────────────────────────────────────────────────────────────
@@ -64,7 +68,10 @@ echo "0403 70b1" | sudo tee /sys/bus/usb-serial/drivers/ftdi_sio/new_id > /dev/n
     echo "       (ja registrado — normal)"
 
 echo "[3/3] Ajustando permissoes em /dev/ttyUSB*..."
-sleep 0.3
+TIMEOUT=5; ELAPSED=0
+while [ $ELAPSED -lt $TIMEOUT ] && [ -z "$(ls /dev/ttyUSB* 2>/dev/null)" ]; do
+    sleep 0.5; ELAPSED=$((ELAPSED + 1))
+done
 PORTS=$(ls /dev/ttyUSB* 2>/dev/null || true)
 if [ -n "$PORTS" ]; then
     sudo chmod a+rw $PORTS

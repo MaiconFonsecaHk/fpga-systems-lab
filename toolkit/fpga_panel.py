@@ -116,7 +116,6 @@ UART_PRESETS = {
 
 CONFIG_FILE = _KIT_DIR / "pin_config.json"
 LOG_DIR     = _KIT_DIR / "logs"
-LOG_DIR.mkdir(exist_ok=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Cores para o log
@@ -549,6 +548,11 @@ class FPGAPanel:
 
         self.queue: queue.Queue[tuple[str, object]] = queue.Queue()
         self.current_process: subprocess.Popen | None = None
+
+        try:
+            LOG_DIR.mkdir(exist_ok=True)
+        except PermissionError:
+            pass
 
         # ── variáveis de configuração ──────────────────────────────────────
         self.openocd_path = StringVar(value=shutil.which("openocd") or "openocd")
@@ -1368,6 +1372,17 @@ class FPGAPanel:
     def _after_openocd_install(self, rc, out):
         if rc == 0:
             new_path = shutil.which("openocd")
+            if not new_path:
+                candidates = [
+                    Path("C:/openocd/bin/openocd.exe"),
+                    Path("C:/ProgramData/chocolatey/bin/openocd.exe"),
+                    Path("C:/Program Files/OpenOCD/bin/openocd.exe"),
+                    Path("C:/tools/openocd/bin/openocd.exe"),
+                ]
+                for c in candidates:
+                    if c.exists():
+                        new_path = str(c)
+                        break
             if new_path:
                 self.openocd_path.set(new_path)
                 self._log("OK", f"OpenOCD instalado: {new_path}")
