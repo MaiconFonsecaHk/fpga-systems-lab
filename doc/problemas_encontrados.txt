@@ -1,0 +1,427 @@
+================================================================================
+FPGA Systems Lab — Jogo de Reflexo (Bionexus TX-LED R27 / XC3S200-4TQG144)
+Registro de Problemas Encontrados Durante o Desenvolvimento
+Fedora 44 | ISE 14.7 | OpenOCD 0.12.0 | Python 3.14.5
+================================================================================
+
+DATA DA SESSÃO: 23/06/2026
+AMBIENTE: Fedora 44, Xilinx ISE 14.7 instalado em /opt/Xilinx/14.7/ISE_DS
+
+--------------------------------------------------------------------------------
+SEÇÃO 1 — PROBLEMAS DE AMBIENTE E INSTALAÇÃO
+--------------------------------------------------------------------------------
+
+[P01] xlcm não encontrado no PATH errado
+  Sintoma: "xlcm: comando não encontrado" ao rodar do diretório ISE/bin/lin64
+  Causa: xlcm fica em common/bin/lin64, não em ISE/bin/lin64
+  Solução: usar /opt/Xilinx/14.7/ISE_DS/common/bin/lin64/xlcm
+
+[P02] install_drivers sem permissão de execução
+  Sintoma: "sudo: ./install_drivers: comando não encontrado"
+  Causa: arquivo existe mas não tem bit +x
+  Solução: sudo chmod +x install_drivers antes de executar
+
+[P03] install_drivers executado no diretório errado
+  Sintoma: arquivo não encontrado ao tentar em ISE/bin/lin64
+  Causa: install_drivers fica em common/bin/lin64, não em ISE/bin/lin64
+  Solução: cd /opt/Xilinx/14.7/ISE_DS/common/bin/lin64 antes de rodar
+
+[P04] setup_labtools inexistente
+  Sintoma: "sudo: ./setup_labtools: comando não encontrado"
+  Causa: esse binário não existe no ISE 14.7 para Linux
+
+[P05] xc3sprog indisponível no Fedora 44
+  Sintoma: "Nenhuma correspondência para o argumento: xc3sprog"
+  Causa: não existe nos repositórios Fedora
+  Solução: usar OpenOCD em vez de xc3sprog
+
+[P06] libusb-devel com nome diferente no Fedora
+  Sintoma: "Nenhuma correspondência para o argumento: libusb-devel"
+  Causa: no Fedora o pacote se chama libusb1-devel, não libusb-devel
+  Obs: a tentativa de compilar xc3sprog acabou sendo abandonada
+
+[P07] cmake não instalado
+  Sintoma: "cmake: comando não encontrado"
+  Causa: não instalado no sistema; precisaria de sudo dnf install cmake
+
+[P08] git clone falhou por permissão
+  Sintoma: "fatal: could not create work tree dir 'xc3sprog': Permissão negada"
+  Causa: tentativa de clonar em diretório que pertence ao root (/opt/Xilinx/...)
+  Solução: sempre clonar em /home/user/ ou pasta própria do usuário
+
+[P09] pip/pip3 não encontrados; python3 -m pip sem módulo pip
+  Sintoma: "pip: comando não encontrado", "No module named pip"
+  Causa: Fedora 44 com Python 3.14 não inclui pip por padrão
+  Solução: python3 -m ensurepip --user && python3 -m pip install pyserial --user
+
+[P10] pyserial não instalado no painel
+  Sintoma: painel mostrava "Monitor serial: pyserial não instalado"
+  Solução: python3 -m ensurepip --user; python3 -m pip install pyserial --user
+
+[P11] Falhas de rede ao baixar RPMs (DNF Curl error 56)
+  Sintoma: "Recv failure: Conexão fechada pela outra ponta" em múltiplos pacotes
+  Causa: mirror fedora.c3sl.ufpr.br instável; rpm baixado parcialmente
+  Obs: DNF conseguiu instalar na mesma execução mesmo com erros parciais de curl
+
+[P12] sudo -n falhou no painel (senha necessária)
+  Sintoma: "sudo: uma senha é necessária" → operação com return code 1
+  Causa: usuário marcou "Linux: usar sudo -n" sem ter autenticado antes
+  Solução: desmarcar a opção no painel, pois o udev já dava acesso sem sudo
+
+--------------------------------------------------------------------------------
+SEÇÃO 2 — PROBLEMAS COM O OPENOCD E gravar.cfg
+--------------------------------------------------------------------------------
+
+[P13] Sintaxe desatualizada no gravar.cfg (OpenOCD 0.12.0)
+  Sintoma: "DEPRECATED! use 'adapter driver' not 'interface'"
+           "DEPRECATED! use 'ftdi vid_pid' not 'ftdi_vid_pid'"
+           "DEPRECATED! use 'ftdi layout_init' not 'ftdi_layout_init'"
+  Causa: gravar.cfg usava sintaxe antiga do OpenOCD < 0.11
+  Solução: substituir por:
+    adapter driver ftdi
+    ftdi vid_pid 0x0403 0x70b1
+    ftdi layout_init 0x0008 0x000b
+
+[P14] TAP automático detectado pelo OpenOCD — aviso sobre irlen
+  Sintoma: "Warn: AUTO auto0.tap - use 'jtag newtap auto0 tap -irlen 8 ...'"
+  Causa: platform_flash não estava declarado explicitamente no .cfg
+  Solução: adicionar "jtag newtap platform_flash tap -irlen 8 -expected-id 0xd5044093"
+
+[P15] pld load silencioso — parecia não ter gravado
+  Sintoma: OpenOCD terminava com return code 0 mas sem mensagem "Programming..."
+  Causa: OpenOCD 0.12.0 com driver virtex2 não imprime progresso durante pld load
+  Solução: confiar no return code 0 como indicador de sucesso
+
+[P16] pld load 0 mostrava help do comando em vez de gravar
+  Sintoma: saída mostrava ajuda do comando pld em vez de gravar o bitstream
+  Causa: gravar.cfg não tinha "pld device virtex2 xc3s200.tap" declarado
+  Solução: adicionar essa linha ao .cfg
+
+[P17] virtex2 load também mostrava help do comando
+  Sintoma: tentativa com "virtex2 load 0 led_1pps.bit" mostrou apenas help
+  Causa: o subcomando correto é "pld load", não "virtex2 load"
+
+--------------------------------------------------------------------------------
+SEÇÃO 3 — PROBLEMAS COM A SÍNTESE ISE (XST / MAP / PAR / BITGEN)
+--------------------------------------------------------------------------------
+
+[P18] Diretórios de trabalho do XST não criados
+  Sintoma: XST falhou ao tentar escrever em xst/projnav.tmp e xst/work
+  Causa: XST exige que esses diretórios existam antes de rodar
+  Solução: mkdir -p xst/projnav.tmp xst/work _ngo _xmsgs antes do XST
+
+[P19] XST não aceita mod com valor não-potência-de-2
+  Sintoma: erro de síntese em "mod RANDOM_SPAN_MS" com RANDOM_SPAN_MS=4000
+  Causa: XST do ISE 14.7 não suporta divisão/mod por valores arbitrários em VHDL
+  Solução: mudar RANDOM_SPAN_MS de 4000 para 4096 (potência de 2)
+           e remover o "mod" explícito (usar apenas os bits 11..0 do LFSR)
+
+[P20] XILINXD_LICENSE_FILE não configurado
+  Sintoma: MAP falhou com erro de licença
+  Causa: variável não exportada no script de síntese
+  Solução: export XILINXD_LICENSE_FILE=/home/user/Downloads/Xilinx.lic
+
+[P21] Diretório trabalho_final pertence ao root (sem permissão de escrita)
+  Sintoma: "cp: Permissão negada" ao tentar copiar VHD para trabalho_final/
+  Causa: pasta foi criada com sudo e não tem permissão para o usuário normal
+  Solução: criar projeto novo em /home/user/Downloads/.../reflex_game/
+
+--------------------------------------------------------------------------------
+SEÇÃO 4 — PROBLEMAS COM O HARDWARE NA BANCADA
+--------------------------------------------------------------------------------
+
+[P22] Placa desconectando e reconectando durante testes
+  Sintoma: lsusb mostrava device 038, depois desapareceu, depois voltou como 039
+  Causa: cabo USB instável ou placa com problema de alimentação
+  Obs: problema físico, sem solução no software
+
+[P23] Botão RESET da FPGA apagou a configuração da SRAM
+  Sintoma: após pressionar RESET, todos os LEDs apagaram
+  Causa: o botão RESET aciona PROG_B que limpa a SRAM — comportamento normal
+  Solução: recarregar o bitstream pelo painel após cada RESET
+
+[P24] Confusão entre LEDs do jogo e LED DONE (D3)
+  Sintoma: acendia D3 perto da flash, não os LEDs do jogo
+  Causa: D3 perto da flash = LED DONE da FPGA (indica configuração bem-sucedida),
+         diferente dos D5/D6/D7 que são os LEDs do jogo (perto da FPGA)
+  Obs: D3 aceso ao gravar = sinal positivo, não erro
+
+[P25] Botão preso — jogo travado em estado WAIT_RELEASE
+  Sintoma: após pressionar o botão de início, o jogo não avançava para a próxima
+           fase; ficava travado aguardando soltar o botão
+  Causa: pino P56 (BLE_STS) não tem resistor pull-down no hardware da placa R27;
+         ao soltar o botão o pino ficava flutuando em nível alto, e o FPGA entendia
+         que o botão continuava pressionado
+  Solução: adicionar atributo PULLDOWN no UCF:
+           NET "btn" LOC = "P56" | IOSTANDARD = LVCMOS33 | PULLDOWN;
+           (o IOB do FPGA ativa pull-down interno)
+
+--------------------------------------------------------------------------------
+SEÇÃO 5 — PROBLEMAS COM O MONITOR SERIAL (UART)
+--------------------------------------------------------------------------------
+
+[P26] /dev/ttyUSB não aparecia para o pyserial
+  Sintoma: pyserial.tools.list_ports listava 32 portas (ttyS0-S31) mas nenhum
+           /dev/ttyUSB
+  Causa: FT2232H estava em modo MPSSE/Vendor Specific em ambas as interfaces;
+         nesse modo o driver ftdi_sio do kernel NÃO cria /dev/ttyUSB, porque
+         o OpenOCD usa a interface diretamente via libusb sem passar pelo kernel
+  Obs: isso significa que a porta serial do Canal B não estava disponível
+
+[P27] Monitor do painel não conseguia conectar à porta serial
+  Sintoma: porta COM não encontrada no painel; monitor sem dados
+  Causa: decorrência de P26 — sem /dev/ttyUSB, o pyserial não tem onde conectar
+  Conclusão posterior: o professor confirmou que Canal B está disponível como UART;
+  o ftdi_sio precisa ser carregado e a Interface 1 precisa ser ligada ao driver
+
+[P28] Pino uart_tx incorreto no código padrão
+  Causa: o padrão no generate_ucf era P28 (BDBUS3), mas BDBUS1 (RXD do FT2232H
+         em modo UART) = USB_D1 = P30 é o pino correto para FPGA → PC
+  Impacto: mesmo que /dev/ttyUSB aparecesse, o FPGA enviaria dados pelo pino
+           errado e o PC nunca receberia a string "RESULT_MS=XXXX"
+
+[P29] Imagens de IPTU enviadas no lugar do esquemático da placa
+  Sintoma: Claude recebeu documentos fiscais de Chapecó em vez do esquemático R27
+  Causa: usuário enviou arquivos errados acidentalmente durante a sessão
+
+--------------------------------------------------------------------------------
+SEÇÃO 6 — PROBLEMAS DE USO DO TERMINAL (ERROS DO USUÁRIO)
+--------------------------------------------------------------------------------
+
+[P30] Comando `cls` inexistente no Bash Linux
+  Sintoma: "cls: comando não encontrado"
+  Causa: cls é comando Windows; no Linux usar `clear`
+
+[P31] Paste mode acidental no terminal
+  Sintoma: "^[[200~Bus 001 Device 039..." → "bash: Bus: comando não encontrado"
+  Causa: bracketed paste mode no terminal; ao colar texto do lsusb diretamente
+         no prompt, o shell tentou executar como comando
+  Solução: usar Ctrl+Shift+V para colar com segurança no terminal
+
+[P32] Múltiplos comandos separados por Enter em vez de ; ou &&
+  Sintoma: comandos como "cd diretório\nsudo ./script" executados separadamente
+           causando "script: comando não encontrado" porque o cd não foi seguido
+           do comando no mesmo contexto
+  Causa: usuário colou múltiplas linhas sem encadeamento correto
+
+--------------------------------------------------------------------------------
+SEÇÃO 7 — PROBLEMAS DO PROJETO VHDL ORIGINAL
+--------------------------------------------------------------------------------
+
+[P33] VHD original era pisca LED (piscaled.vhd), não o jogo de reflexo
+  Situação: o trabalho_final/ tinha apenas o pisca LED compilado;
+            o VHDL do jogo de reflexo não havia sido implementado ainda
+  Solução: criar reflex_game.vhd do zero com FSM, LFSR, debounce, UART TX
+
+[P34] VHDL original sem pino de entrada do botão (GPIO)
+  Situação: piscaled.ucf não declarava nenhum pino de entrada
+  Solução: adicionar "NET 'btn' LOC = 'P56' | IOSTANDARD = LVCMOS33 | PULLDOWN"
+
+[P35] VHDL sem transmissor UART — impossível printar ms no monitor
+  Situação: versão inicial do reflex_game.vhd não tinha porta uart_tx
+  Solução: adicionar máquina de estados UART (TX_IDLE/TX_START/TX_DATA/TX_STOP)
+           com UART_BIT_TICKS = 347 para 115200 baud com clock de 40 MHz
+           (40.000.000 / 115.200 = 347,2 → 347 ticks)
+
+--------------------------------------------------------------------------------
+SEÇÃO 8 — PROBLEMAS COM HARDWARE FÍSICO (SEGUNDA PLACA)
+--------------------------------------------------------------------------------
+
+[P36] Primeira placa com defeito — não aparecia no lsusb
+  Sintoma: lsusb não mostrava 0403:70b1; dmesg sem nova linha ao conectar
+  Causa: placa com defeito elétrico no FT2232H ou fusível PPTC queimado
+  Solução: trocar por outra placa (o professor tinha outra unidade disponível)
+
+[P37] Cabo charge-only — placa não detectada em outro cabo
+  Sintoma: plug USB sem enumeração (nada no dmesg)
+  Causa: muitos cabos USB A-B são apenas carga (sem D+/D−)
+  Solução: usar cabo garantidamente de dados (ex: o mesmo que acessa pen drive)
+
+[P38] Curto imediato ao soldar botão em BLE_STS + 3.3V do J3
+  Sintoma: ao soldar fio em BLE_STS e VCC, a placa entrou em curto antes de ligar
+  Causa: módulo Bluetooth instalado no J3 mantém BLE_STS puxado para GND;
+         conectar 3.3V direto nesse pino cria caminho de curto pelo driver do módulo
+  Obs: na placa R27 com BLE, NÃO ligar botão em BLE_STS; usar outro pino GPIO
+
+--------------------------------------------------------------------------------
+SEÇÃO 9 — INVESTIGAÇÃO DO PROTOCOLO ERRADO (UART vs FIFO)
+--------------------------------------------------------------------------------
+
+[P39] Tentativas fracassadas de UART em P29, P30, P28, P93
+  Sintoma: zero bytes chegando no /dev/ttyUSB1 independente do pino uart_tx
+  Tentativas: P29 (USB_D1 area), P30, P28 (USB_D3), P93 (área JTAG) — nenhuma funcionou
+  Causa raiz: veja P40
+
+[P40] Protocolo completamente errado: FT2232H Canal B é FIFO 245, não UART serial
+  Sintoma: nunca chegava nenhum byte no monitor serial, mesmo com pino "correto"
+  Causa: o esquemático mostra que Canal B expõe USB_D0-D7 (barramento de 8 bits)
+         + WR# + TXE# + RXF# — isso é Async FIFO 245, não UART
+         Em modo FIFO paralelo, um único pino uart_tx nunca vai funcionar
+  Solução: reescrever o VHDL para usar protocolo FIFO paralelo de 8 bits
+           com máquina de estados FTX_IDLE/FTX_CHECK/FTX_STROBE/FTX_WAIT/FTX_NEXT
+
+[P41] 19 erros de timing ao testar P93 como uart_tx
+  Sintoma: PAR reportou 19 timing violations com LOC = "P93"
+  Causa: P93 fica no lado oposto do chip em relação ao Bank 6 (onde estão os sinais USB);
+         o roteamento ficou longo demais
+  Obs: como a UART a 115200 baud é lenta, os erros eram toleráveis, mas foi abandonado
+       ao descobrir que o protocolo todo estava errado (P40)
+
+[P42] Pino P29 = GND e P34 = VCCO_6 — NÃO são pinos I/O do FPGA
+  Sintoma: erro de synthesis/MAP ao tentar LOC = "P29" ou LOC = "P34"
+  Causa: o package TQ144 reserva P29 para GND e P34 para VCCO do Bank 6
+  Solução: o PAD report do ISE revelou os pinos reais válidos do Bank 6;
+           usb_d<2> corrigido de P29 → P27; usb_d<6> corrigido de P34 → P36
+
+[P43] Caminho BCD com 24 níveis de lógica → timing violation no PAR
+  Sintoma: PAR reportava 16 timing errors na path reaction_time_ms → uart_msg
+  Causa: a conversão BCD (inteiro → 4 dígitos ASCII) usa cadeia longa de if/elsif
+         equivalendo a 24 andares de lógica combinacional (27.7ns > 25ns no clock de 40MHz)
+  Solução: adicionar TIG (Timing Ignore) no UCF:
+           INST "reaction_time_ms_*" TNM = "TG_rms";
+           INST "uart_msg_*_*"       TNM = "TG_uart_msg";
+           TIMESPEC "TS_bcd" = FROM "TG_rms" TO "TG_uart_msg" TIG;
+           (seguro porque o caminho executa apenas 1x por pressão de botão)
+
+--------------------------------------------------------------------------------
+SEÇÃO 10 — PROBLEMAS COM GRAVAÇÃO NA FLASH (iMPACT + SVF)
+--------------------------------------------------------------------------------
+
+[P44] iMPACT ERROR:1710 — SVF incompleto (162 bytes); flash "gravada" mas vazia
+  Sintoma: painel mostrava "FLASH GRAVADA COM SUCESSO" mas firmware não persistia
+  Causa: o batch do iMPACT usava "addDevice -position 2" sem -file nem -part;
+         iMPACT retornava rc=1 mas o código não checava rc antes de chamar OpenOCD
+  Consequência: SVF gerado tinha apenas o cabeçalho (162 bytes); OpenOCD executava
+                sem reclamar (rc=0), mas não havia dados de programação
+  Solução: checar rc do iMPACT; remover o SVF anterior antes de cada tentativa;
+           validar tamanho mínimo do SVF (>1000 bytes)
+
+[P45] XCF_DEVICE errado: xcf04s em vez de xcf01s
+  Sintoma: promgen gerava MCS para xcf04s; iMPACT gerava SVF com IDCODE esperado
+           0x0f5046093, mas o chip real retornava 0x0f5044093 → TDO mismatch
+  Causa: o ID 0xd5044093 & 0x0FFFFFFF = 0x5044093 corresponde ao xcf01s, não xcf04s
+         (confirmado cruzando com o arquivo BSDL xcf01s_1532.bsd do ISE)
+  Comprovação adicional: XC3S200 bitstream = 130.952 bytes; xcf01s = 1Mbit = 131.072 bytes
+                         → cabe por apenas 120 bytes de folga
+  Solução: mudar XCF_DEVICE de "xcf04s" para "xcf01s"
+
+[P46] Ordem errada dos dispositivos no batch iMPACT → TDO sempre zero
+  Sintoma: após corrigir o device (xcf01s), SVF era gerado mas OpenOCD reportava
+           "tdo check error: READ=0x000000000 WANT=0x0f5044093" — leituras eram zero
+  Causa: o batch usava Flash=posição1, FPGA=posição2; mas o iMPACT numera os
+         dispositivos pela ordem TDO→TDI; como o hardware é TDI→FPGA→Flash→TDO,
+         a Flash está no lado TDO (posição 1 no iMPACT) e o FPGA no lado TDI (posição 2)
+         O batch invertido gerava um SVF com TIR/TDR errados; ao executar, leituras IDCODE
+         chegavam de volta pelo FPGA (IR de 6 bits) em vez da Flash (IR de 8 bits)
+  Solução: inverter as posições no batch:
+           addDevice -position 1 -part xcf01s  ← lado TDO (Flash)
+           addDevice -position 2 -part xc3s200 ← lado TDI (FPGA)
+           assignFile -position 1 -file "...flash.mcs"
+           program -p 1 -e -v
+  Flash gravada com sucesso após essa correção.
+
+[P47] addDevice -file no batch iMPACT causava erro de parse
+  Sintoma: versão anterior do batch usava "-file reflex_game.bit" no addDevice da FPGA;
+           iMPACT auto-detectava o xc3s200 na posição errada com esse parâmetro
+  Solução: sempre usar -part para especificar o dispositivo; assignFile apenas para MCS
+
+--------------------------------------------------------------------------------
+SEÇÃO 11 — MONITOR SERIAL E USO INCORRETO DAS PORTAS
+--------------------------------------------------------------------------------
+
+[P48] Monitor conectando em ttyUSB0 (Canal A = JTAG) em vez de ttyUSB1 (Canal B)
+  Sintoma: painel conectava serial, mas zero bytes apareciam
+  Causa: ttyUSB0 = Canal A do FT2232H = interface JTAG (não envia dados do jogo)
+         ttyUSB1 = Canal B = interface FIFO/serial do jogo
+  Confirmação via udevadm: ttyUSB0 → ID_USB_INTERFACE_NUM=00, ttyUSB1 → 01
+  Solução: sempre selecionar /dev/ttyUSB1 no monitor; painel atualizado para
+           mostrar aviso ao selecionar ttyUSB0 e para auto-preferir ttyUSB1
+
+[P49] sudo python3 fpga_panel.py — painel via sudo não encontrava portas seriais
+  Sintoma: ao rodar com sudo, lista de portas ficava vazia
+  Causa: pyserial com permissões root usa contexto diferente de dbus/udev;
+         as portas /dev/ttyUSB* criadas para o usuário normal não apareciam
+  Solução: nunca usar sudo para o painel; usar chmod a+rw nas portas ou regra udev
+
+[P50] Problema de rede WiFi — MAC clonado causava conflito ARP
+  Sintoma: ao ligar o WiFi do notebook na rede "Felipe", derrubava a rede de todos os
+           outros dispositivos conectados ao mesmo roteador
+  Causa: o perfil WiFi "Felipe" tinha 802-11-wireless.cloned-mac-address = E8:5C:5F:68:7C:A1
+         Se outro dispositivo na rede usava o mesmo MAC, o roteador ficava confuso
+         e parava de rotear pacotes para todos
+  Solução: nmcli connection modify "Felipe" 802-11-wireless.cloned-mac-address ""
+           (remove o MAC clonado; notebook volta a usar seu MAC real 68:17:29:82:B3:88)
+  Obs: problema fora do escopo FPGA, resolvido durante a mesma sessão
+
+--------------------------------------------------------------------------------
+SEÇÃO 12 — ERROS DE TKINTER E UI DO PAINEL
+--------------------------------------------------------------------------------
+
+[P51] _on_mode_change: _TclError ao chamar .configure(state=...) em LabelFrame/Label
+  Sintoma: painel travava com "_tkinter.TclError: unknown option '-state'"
+           na linha child.configure(state="normal") dentro de _on_mode_change
+  Causa: a versão anterior iterava sobre winfo_children() e tentava configurar state
+         em todos os widgets, incluindo ttk.LabelFrame e ttk.Label que não suportam
+         a opção "state"
+  Solução: filtrar apenas widgets stateful (ttk.Entry, ttk.Combobox, ttk.Button,
+           ttk.Checkbutton, ttk.Radiobutton) com isinstance check em _set_frame_state,
+           e aplicar recursivamente nos sub-frames
+
+[P52] Painel do "canteiro de obras" (interfaceFPGA/) ficou desatualizado
+  Situação: o desenvolvimento evoluiu para reflex_fpga_kit/ com novo painel, documentação
+            e scripts; o toolkit antigo em interfaceFPGA/fpga_toolkit/ ficou para trás
+  Solução: usar apenas ~/Downloads/reflex_fpga_kit/toolkit/ a partir desse ponto
+
+--------------------------------------------------------------------------------
+SEÇÃO 13 — LIMITES DO SISTEMA E FERRAMENTAS
+--------------------------------------------------------------------------------
+
+[P53] Claude Fable 5 indisponível durante toda a sessão
+  Sintoma: "Claude Fable 5 is currently unavailable. Please use Opus 4.8 or another model."
+  Impacto: foi usado Sonnet 4.6 em vez do Fable 5; funcionalidades similares, mas
+           o modelo mais avançado estava fora do ar
+
+[P54] Limites de sessão Claude atingidos múltiplas vezes
+  Sintoma: "You've hit your session limit" — interrupção forçada no meio de edições
+  Impacto: algumas edições foram interrompidas; contexto perdido entre sessões
+           exigiu recompactação e recomeço
+  Obs: em uma das interrupções o código do painel estava sendo escrito —
+       a versão foi completada na sessão seguinte sem regressões
+
+--------------------------------------------------------------------------------
+SEÇÃO 14 — ESTADO FINAL ALCANÇADO
+--------------------------------------------------------------------------------
+
+[OK] ISE 14.7 instalado em /opt/Xilinx/14.7/ISE_DS
+[OK] OpenOCD 0.12.0 instalado via dnf
+[OK] Placa detectada: VID=0403 PID=70b1 (FT2232H MK00018)
+[OK] JTAG chain: XC3S200 (0x01414093) → XCF01S platform_flash (0xd5044093)
+[OK] reflex_game.vhd compilado: modo FIFO 245 paralelo, 344 slices, 0 erros de timing
+[OK] reflex_game.bit gerado (128 KB)
+[OK] Bitstream carregado na FPGA via pld load — return code 0
+[OK] LED D6 (P50) aceso em estado IDLE = jogo pronto
+[OK] Botão P56 (BLE_STS) com PULLDOWN no UCF — debounce correto
+[OK] Flash XCF01S gravada com sucesso via promgen → iMPACT SVF → OpenOCD
+[OK] Firmware persiste ao desligar e religar a placa
+[OK] FIFO Canal B ativo em ttyUSB1 (Interface 01 confirmado via udevadm)
+[OK] Painel fpga_panel.py: seleção de modo FIFO/UART, dropdowns de pinos,
+     5 presets, botão Recompilar + Gravar Flash, monitor com bytes RAW
+[OK] Kit completo em ~/Downloads/reflex_fpga_kit/ com doc/, firmware/, toolkit/
+[PENDENTE] Teste real do monitor serial na placa (professor levou a placa para casa)
+[PENDENTE] Botão físico: BLE_STS não pode ser usado (curto com módulo BLE);
+           precisar usar outro pino GPIO livre na placa
+
+--------------------------------------------------------------------------------
+NOTAS ADICIONAIS
+--------------------------------------------------------------------------------
+
+- Gravação via pld load é VOLÁTIL: SRAM da FPGA perde ao desligar ou ao RESET.
+- Gravação PERMANENTE na flash (XCF01S) via promgen → iMPACT SVF → OpenOCD svf.
+- P29 = GND e P34 = VCCO_6 no package TQ144 — NUNCA usar como pinos I/O no UCF.
+- FIFO 245: baudrate não importa no lado FPGA (paralelo); /dev/ttyUSB1 a qualquer baud.
+- MAC clonado E8:5C:5F no perfil WiFi "Felipe" foi removido (nmcli modify).
+- Claude Fable 5 indisponível durante toda a sessão; foi usado Sonnet 4.6.
+
+================================================================================
+Fim do registro — gerado em 2026-06-26 | Atualizado com sessão completa (7810 linhas)
+================================================================================
