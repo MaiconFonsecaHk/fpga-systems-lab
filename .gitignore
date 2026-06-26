@@ -40,6 +40,8 @@ firmware/webtalk.log
 toolkit/reflex_game_flash.*
 toolkit/flash_program.cmd
 toolkit/_impactbatch.log
+firmware/reflex_game_flash.*
+firmware/flash_program.cmd
 
 # ── Python cache ──────────────────────────────────────────────────────────────
 __pycache__/
