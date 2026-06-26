@@ -51,6 +51,15 @@ if not defined XILINXD_LICENSE_FILE (
 echo Licenca: %XILINXD_LICENSE_FILE%
 
 cd /d "%PROJ_DIR%"
+
+echo === Limpando artefatos intermediarios anteriores ===
+for %%E in (ngc ngd ncd pcf bgn bld mrp pad par syr drc lso map ngm ngr ptwx twr twx unroutes xdl xpi xrpt xwbt) do (
+    if exist "%TOP%.%%E" del /q "%TOP%.%%E"
+)
+if exist "%TOP%_map.ncd" del /q "%TOP%_map.ncd"
+if exist "%TOP%_map.pcf" del /q "%TOP%_map.pcf"
+if exist "xst\work"      del /q "xst\work\*.*" 2>nul
+
 if not exist xst\projnav.tmp mkdir xst\projnav.tmp
 if not exist xst\work        mkdir xst\work
 if not exist _ngo            mkdir _ngo

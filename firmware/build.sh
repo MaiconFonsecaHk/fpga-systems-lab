@@ -42,6 +42,13 @@ export XILINXD_LICENSE_FILE="${XILINXD_LICENSE_FILE:-$HOME/Downloads/Xilinx.lic}
 source "$XILINX_DIR/settings64.sh" 2>/dev/null || true
 
 cd "$PROJ_DIR"
+
+echo "=== Limpando artefatos intermediarios anteriores ==="
+rm -f *.ngc *.ngd *.ncd *.pcf *.bgn *.bld *.mrp *.pad *.par *.syr \
+       *.drc *.lso *.map *.ngm *.ngr *.ptwx *.twr *.twx *.unroutes \
+       *.xdl *.xpi *.xrpt *.xwbt *_map.ncd *_map.pcf
+rm -f xst/*.srp xst/work/*.* 2>/dev/null || true
+
 mkdir -p xst/projnav.tmp xst/work _ngo _xmsgs
 
 echo ""
