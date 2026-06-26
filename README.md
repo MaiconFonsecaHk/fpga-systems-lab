@@ -47,7 +47,17 @@ fpga-systems-lab/
 │   ├── 04_setup_linux.md            <- instalacao e drivers no Linux
 │   ├── 05_setup_windows.md          <- instalacao e drivers no Windows
 │   ├── 06_openocd_e_gravacao.md     <- O QUE E O OPENOCD, JTAG, gravar.cfg, SVF
-│   └── esquematico_R27_FPGA.png     <- esquematico da placa
+│   ├── esquematico_R27_FPGA.png     <- esquematico da placa
+│   ├── problemas_encontrados.txt    <- 56 problemas documentados durante o projeto
+│   └── trabalho_final/
+│       ├── apresentar/
+│       │   ├── apresentacao.md                <- roteiro dos slides (fonte)
+│       │   ├── apresentacao_jogo_reflexo.pdf  <- slides PDF (A4 landscape, 15 slides)
+│       │   ├── apresentacao_jogo_reflexo.pptx <- slides PPTX (importavel no Canva)
+│       │   └── roteiro_apresentacao.md        <- guia detalhado por integrante
+│       └── documentacao/
+│           ├── documento_tecnico.md           <- documento tecnico (fonte Markdown)
+│           └── documento_tecnico.pdf          <- documento tecnico entregavel (PDF)
 │
 ├── firmware/                        <- codigo-fonte VHDL
 │   ├── reflex_game.vhd              <- logica principal (EDITAR AQUI)
@@ -155,5 +165,15 @@ Ver `doc/06_openocd_e_gravacao.md` para entender o que e o OpenOCD e como funcio
 
 ## Projeto Academico
 
-Prof. Emiliano Amarante Veiga  
-Disciplina de Sistemas Digitais / Arquitetura de Computadores
+**Instituicao:** UNOESC - Universidade do Oeste de Santa Catarina  
+**Disciplina:** 36810 - LINGUAGEM DE DESCRICAO DE HARDWARE - CHAECOMP-3  
+**Professor:** Emiliano Amarante Veiga
+
+**Integrantes:**
+
+| RA     | Nome                           |
+|--------|--------------------------------|
+| 282561 | Felipe Cesar Rodrigues         |
+| 446983 | Maicon Douglas Silva Fonseca   |
+| 437345 | Paulo Henrique Teixeira Rocha  |
+| 448801 | Willian Coletti                |
