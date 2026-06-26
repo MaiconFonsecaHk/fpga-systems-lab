@@ -1086,9 +1086,29 @@ class FPGAPanel:
         self._save_pin_config()
         mode = self.comm_mode.get()
         pin_cfg = self._current_pin_cfg()
+
+        _FORBIDDEN = {29: "GND", 34: "VCCO_6"}
+        pins_to_check = (pin_cfg["d"] + [pin_cfg["wr"], pin_cfg["txe"]]) if mode == "fifo" \
+                        else [pin_cfg.get("tx", 28)]
+        for p in pins_to_check:
+            if p in _FORBIDDEN:
+                messagebox.showerror("Pino proibido",
+                    f"P{p} = {_FORBIDDEN[p]} — nunca usar como I/O!\n\n"
+                    f"Pinos válidos do Bank 6:\n{BANK6_IO_PINS}")
+                return
+            if p not in BANK6_IO_PINS:
+                messagebox.showerror("Pino inválido",
+                    f"P{p} não é um pino I/O válido do Bank 6.\n\n"
+                    f"Pinos válidos:\n{BANK6_IO_PINS}")
+                return
+
         try:
             vhdl = generate_vhdl(mode)
             ucf  = generate_ucf(mode, pin_cfg)
+            for path_str in [self.vhdl_path.get(), self.ucf_path.get()]:
+                src = Path(path_str)
+                if src.exists():
+                    src.replace(src.with_suffix(src.suffix + ".bak"))
             Path(self.vhdl_path.get()).write_text(vhdl, encoding="utf-8")
             Path(self.ucf_path.get()).write_text(ucf,  encoding="utf-8")
             self._blog(f"=== Arquivos gerados ({_dt.datetime.now():%H:%M:%S}) ===")
